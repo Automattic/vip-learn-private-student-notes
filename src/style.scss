@@ -6,7 +6,17 @@
  */
 
 .wp-block-vip-learn-private-student-notes {
+
+	#private-student-note-editor {
+		button {
+			strong {
+				color: #fff;
+			}
+		}
+	}
+
 	.editor-content {
+		background-color: #fff;
 		li {
 			p {
 				margin-block-start: 0;
