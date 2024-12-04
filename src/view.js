@@ -81,7 +81,7 @@ const PrivateStudentNotesEditor = () => {
       .catch(error => console.error('Error saving note:', error));
   };
 
-    // Sanitize function (you can move this to a separate file and import it)
+    // Sanitize function - restrict HTML to allow list of tags with stripped attributes
     const sanitizeNoteContent = (content) => {
         const container = document.createElement('div');
         container.innerHTML = content;
@@ -111,7 +111,7 @@ const PrivateStudentNotesEditor = () => {
   const printEditorContent = () => {
     if (!editor) return;
 
-    const contents = editor.getHTML(); // Get the editor content as HTML
+    const contents = sanitizeNoteContent( editor.getHTML() ); // Get the editor content as HTML, and sanitize
 
     const frame = document.createElement('iframe');
 

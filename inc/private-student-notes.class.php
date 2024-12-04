@@ -9,6 +9,23 @@ class Private_Student_Notes {
     public function __construct() {
         // Register the REST API route
         add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+        add_filter( 'rest_pre_serve_request', [ $this, 'add_no_cache_headers' ], 10, 3 );
+    }
+
+    /**
+     * Add no-cache headers using WordPress' built-in nocache_headers().
+     *
+     * @param bool            $served Whether the request has already been served.
+     * @param WP_HTTP_Response $result Result to send to the client.
+     * @param WP_REST_Request  $request Request used to generate the response.
+     * @return bool Whether the request was served.
+     */
+    public function add_no_cache_headers( $served, $result, $request ) {
+        // Apply no-cache headers only to your custom endpoint
+        if ( strpos( $request->get_route(), '/private-student-notes/v1/' ) === 0 ) {
+            nocache_headers();
+        }
+        return $served;
     }
 
     /**
