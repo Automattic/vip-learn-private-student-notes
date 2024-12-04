@@ -34,7 +34,6 @@ class Private_Student_Notes {
      * @return bool|WP_Error Returns true if the user can edit notes, otherwise a WP_Error.
      */
     private function user_can_edit_private_notes() {
-        return true;
         if ( is_user_logged_in() ) {
             $user = wp_get_current_user();
             return in_array( $user->roles[0], [ 'administrator', 'editor', 'subscriber' ], true );
