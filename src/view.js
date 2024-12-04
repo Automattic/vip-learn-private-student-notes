@@ -81,7 +81,7 @@ const PrivateStudentNotesEditor = () => {
       .catch(error => console.error('Error saving note:', error));
   };
 
-    // Sanitize function (you can move this to a separate file and import it)
+    // Sanitize function - restrict HTML to allow list of tags with stripped attributes
     const sanitizeNoteContent = (content) => {
         const container = document.createElement('div');
         container.innerHTML = content;
