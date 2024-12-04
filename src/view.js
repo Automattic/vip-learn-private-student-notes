@@ -111,7 +111,7 @@ const PrivateStudentNotesEditor = () => {
   const printEditorContent = () => {
     if (!editor) return;
 
-    const contents = editor.getHTML(); // Get the editor content as HTML
+    const contents = sanitizeNoteContent( editor.getHTML() ); // Get the editor content as HTML, and sanitize
 
     const frame = document.createElement('iframe');
 
