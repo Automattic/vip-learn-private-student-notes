@@ -3,12 +3,31 @@
 class Private_Student_Notes {
     
     /**
+     * The allowed tags for the editor, 
+     * deliberately strict to mimize tampering.
+     */
+    private const ALLOWED_TAGS = [
+        'p'      => [],
+        'em'     => [],
+        'strong' => [],
+        'ul'     => [],
+        'li'     => [],
+    ];
+
+    /**
+     * The note is stored in a user meta.
+     */
+    private const NOTE_MAX_LENGTH = 10000;
+    
+    /**
      * Constructor method for initializing the class
      * Registers the REST API routes.
      */
     public function __construct() {
         // Register the REST API route
         add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+        
+        // Ensure that our REST API endpoints are never cached 
         add_filter( 'rest_pre_serve_request', [ $this, 'add_no_cache_headers' ], 10, 3 );
     }
 
@@ -34,6 +53,31 @@ class Private_Student_Notes {
      * @return bool|WP_Error Returns true if the user can edit notes, otherwise a WP_Error.
      */
     private function user_can_edit_private_notes() {
+        
+        /**
+         * The nonce is sent in the X-WP-nonce header, 
+         * and this is also verified in core rest_cookie_check_errors
+         * The additional nonce check here is to make our endpoints
+         * return 403 for all non-logged in direct requests 
+         * without a valid nonce header before continuing to user authentication.
+         */
+        
+        $nonce = null;
+
+        if( isset( $_SERVER['HTTP_X_WP_NONCE'] ) ) {
+            $nonce = sanitize_text_field( $_SERVER['HTTP_X_WP_NONCE'] );
+        }
+
+        if ( null === $nonce ) {
+            return new WP_Error( 'rest_invalid_nonce', __( 'CSRF check failed' ), [ 'status' => 403 ] );
+        }
+
+	    $result = wp_verify_nonce( $nonce, 'wp_rest' );
+
+        if ( !$result ) {
+            return new WP_Error( 'rest_invalid_nonce', __( 'CSRF check failed' ), [ 'status' => 403 ] );
+        }
+
         if ( is_user_logged_in() ) {
             $user = wp_get_current_user();
             return in_array( $user->roles[0], [ 'administrator', 'editor', 'subscriber' ], true );
@@ -102,14 +146,14 @@ class Private_Student_Notes {
         $user_id = get_current_user_id();
     
         if (!$user_id) {
-            return new WP_Error('unauthorized', 'User not logged in', ['status' => 401]);
+            return new WP_Error('unauthorized', 'User not logged in', [ 'status' => 401 ] );
         }
     
-        $note = $this->escape_except_allowed_tags( get_user_meta($user_id, '_private_student_note', true) );
+        $note = $this->escape_except_allowed_tags( get_user_meta( $user_id, '_private_student_note', true ) );
         
-        return rest_ensure_response([
+        return rest_ensure_response( [
             'note' => $note ? $note : '', // Return an empty string if no note exists
-        ]);
+        ] );
     }
 
     /**
@@ -124,34 +168,53 @@ class Private_Student_Notes {
         $user_id = get_current_user_id();
 
         if ( !$user_id ) {
-            return new WP_Error('unauthorized', 'User not logged in', ['status' => 401]);
+            return new WP_Error('unauthorized', 'User not logged in', [ 'status' => 401 ]);
         }
 
         $note = $this->sanitize_note_content( $request->get_param( 'note' ) );
 
-        $max_length = 10000; // Set the max note character length
+        $max_length = self::NOTE_MAX_LENGTH; // Set the max note character length
 
         // Check the note length
         if ( strlen( $note ) > $max_length ) {
-            return new WP_REST_Response( array(
+            return new WP_REST_Response( [
                 'success' => false,
-                'message' => 'Note exceeds the maximum allowed length of ' . $max_length . ' characters.',
-            ), 400 );
+                'message' => sprintf(
+                    __( 'Note exceeds the maximum allowed length of %d characters.', 'vip-learn-private-student-notes' ),
+                    $max_length
+                ),
+            ], 400 );
         }
 
         if ( empty( $note ) ) {
             return new WP_Error( 'invalid_data', 'Invalid note data', [ 'status' => 400 ] );
         }
 
-        update_user_meta( $user_id, '_private_student_note', $note );
+        // Retrieve the current note
+        $current_note = get_user_meta( $user_id, '_private_student_note', true );
 
-        return new WP_REST_Response( 
-            [
+        // Check if the new note is the same as the current one
+        if ( $current_note === $note ) {
+            return new WP_REST_Response( [
                 'success' => true,
-                'message' => 'Note saved successfully'
-            ], 
-            200 
-        );
+                'message' => 'No changes were made to the note.',
+            ], 200 );
+        }
+
+        // Attempt to update the note
+        $updated = update_user_meta( $user_id, '_private_student_note', $note );
+
+        if ( $updated ) {
+            return new WP_REST_Response( [
+                'success' => true,
+                'message' => 'Note saved successfully.',
+            ], 200 );
+        } else {
+            return new WP_REST_Response( [
+                'success' => false,
+                'message' => 'Failed to save the note. Please try again.',
+            ], 500 );
+        }
     }
 
     /**
@@ -163,18 +226,8 @@ class Private_Student_Notes {
      * @return string The sanitized content.
      */
     private function sanitize_note_content( $content ) {
-        $allowed_tags = array(
-            'p'      => array(),
-            'em'     => array(),
-            'strong' => array(),
-            'ul'     => array(),
-            'li'     => array(),
-        );
     
-        $sanitized_content =  wp_kses( $content, $allowed_tags );
-
-        // Strip all attributes from the allowed tags
-        $sanitized_content = preg_replace( '/<(p|em|strong|ul|li)\b[^>]*>/', '<$1>', $sanitized_content );
+        $sanitized_content =  wp_kses( $content, self::ALLOWED_TAGS );
 
         return $sanitized_content;
     }
@@ -188,17 +241,12 @@ class Private_Student_Notes {
      * @return string The content with unallowed tags converted to HTML entities.
      */
     private function escape_except_allowed_tags( $content ) {
+        
         // Define the allowed tags
-        $allowed_tags = array(
-            'p'      => array(),
-            'em'     => array(),
-            'strong' => array(),
-            'ul'     => array(),
-            'li'     => array(),
-        );
+        $allowed_tags = self::ALLOWED_TAGS;
     
         // Convert all remaining tags to HTML entities
-        return preg_replace_callback(
+        $escaped_content = preg_replace_callback(
             '/<(\/?)([^>]+)>/',
             function ( $matches ) use ( $allowed_tags ) {
                 // If the tag is in the allowed list, return it as is
@@ -211,5 +259,7 @@ class Private_Student_Notes {
             },
             $content
         );
+
+        return $this->sanitize_note_content( $escaped_content );
     }
 }
