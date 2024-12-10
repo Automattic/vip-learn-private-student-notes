@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       Private Student Notes
+ * Plugin Name:       VIP Learn Private Student Notes
  * Plugin URI:        learn.wpvip.com
  * Description:       A custom block allowing logged-in Sensei students to add and view private notes
  * Requires at least: 6.6
@@ -9,7 +9,7 @@
  * Author:            VIP Learn
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       private-student-notes
+ * Text Domain:       vip-learn-private-student-notes
  *
  * @package VipLearn
  */
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-require "inc/private-student-notes.class.php";
+require_once plugin_dir_path( __FILE__ ) . 'inc/private-student-notes.class.php';
 
 /**
  * Registers the block using the metadata loaded from the `block.json` file.
