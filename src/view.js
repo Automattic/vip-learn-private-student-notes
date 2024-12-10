@@ -18,6 +18,7 @@ const TriangleIcon = ({ isOpen }) => (
 
 const PrivateStudentNotesEditor = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const [saveStatus, setSaveStatus] = useState('idle');
 
     // Restore state from localStorage on component mount
     useEffect(() => {
@@ -69,6 +70,7 @@ const PrivateStudentNotesEditor = () => {
     // Handle form submission via REST API
     const saveNoteToServer = () => {
         const noteContent = editor?.getHTML() || ''; // Get current editor content as HTML
+        setSaveStatus('saving'); // Set status to saving
 
         fetch('/wp-json/private-student-notes/v1/save-note', {
             method: 'POST',
@@ -81,6 +83,8 @@ const PrivateStudentNotesEditor = () => {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    setSaveStatus('saved'); // Set status to saved
+                    setTimeout(() => setSaveStatus('idle'), 2000);
                     console.log('Note saved successfully!');
                 } else {
                     console.error('Error saving note:', data);
@@ -159,13 +163,30 @@ const PrivateStudentNotesEditor = () => {
                     {/* Save Button */}
                     <div style={styles.toolbar}>
                         <button
-                            onClick={saveNoteToServer}
-                            style={styles.button}>
-                            Save Note
+                          onClick={saveNoteToServer}
+                          disabled={saveStatus === 'saving'}
+                          style={{
+                            backgroundColor: saveStatus === 'saving' ? '#888' : '#333',
+                            border: 'none',
+                            borderRadius: '4px',
+                            fontWeight: 'bold',
+                            minWidth: '100px',
+                            color: '#fff',
+                            cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer',
+                          }}
+                          tabIndex={0}
+                        >
+                          {saveStatus === 'saving'
+                            ? 'Saving...'
+                            : saveStatus === 'saved'
+                            ? '✓ Saved'
+                            : 'Save Note'}
                         </button>
                         <button
                             onClick={printEditorContent}
-                            style={styles.button}>
+                            style={styles.button}
+                            tabIndex={0}
+                        >
                             Print Note
                         </button>
                     </div>
@@ -194,6 +215,7 @@ const styles = {
         cursor: 'pointer',
         borderRadius: '4px',
         fontWeight: 'bold',
+        minWidth: '100px'
     },
     editorContent: {
         minHeight: '300px',
