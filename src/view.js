@@ -218,10 +218,10 @@ const styles = {
         minWidth: '100px'
     },
     editorContent: {
-        minHeight: '300px',
+        height: '300px',
         border: '1px solid #ccc',
-        padding: '10px',
         borderRadius: '4px',
+        overflowY: 'scroll'
     },
 };
 
