@@ -16,7 +16,7 @@ const TriangleIcon = ({ isOpen }) => (
     </span>
 );
 
-const PrivateStudentNotesEditor = () => {
+const PrivateStudentNotesEditor = ({ courseId }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [saveStatus, setSaveStatus] = useState('idle');
 
@@ -55,7 +55,8 @@ const PrivateStudentNotesEditor = () => {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                'X-WP-Nonce': wpApiSettings.nonce, // Include nonce for authentication
+                'X-WP-Nonce': wpApiSettings.nonce,
+                'X-Course-ID': courseId,
             },
         })
             .then(response => response.json())
@@ -77,6 +78,7 @@ const PrivateStudentNotesEditor = () => {
             headers: {
                 'Content-Type': 'application/json',
                 'X-WP-Nonce': wpApiSettings.nonce,
+                'X-Course-ID': courseId,
             },
             body: JSON.stringify({ note: sanitizeNoteContent(noteContent) }),
         })
@@ -229,7 +231,10 @@ const styles = {
 const renderEditor = () => {
     const editorElement = document.getElementById('private-student-note-editor');
     if (editorElement) {
-        ReactDOM.render(<PrivateStudentNotesEditor />, editorElement);
+        // Get the course-id from the data attribute
+        const courseId = editorElement.getAttribute('data-course-id');
+
+        ReactDOM.render(<PrivateStudentNotesEditor courseId={courseId} />, editorElement);
     }
 };
 

@@ -102,6 +102,40 @@ class Private_Student_Notes {
     }
 
     /**
+     * Get the course ID if the current queried object is a course or lesson.
+     *
+     * @return int The course ID or 0 if not applicable.
+     */
+    public static function get_course_id() {
+        // Check if Sensei LMS is active
+        if (!function_exists('Sensei')) {
+            return 0;
+        }
+
+        // Get the global post object
+        global $post;
+
+        // Ensure we have a valid post object
+        if (!$post instanceof WP_Post) {
+            return 0;
+        }
+
+        // Check if the current post is a course
+        if ($post->post_type === 'course') {
+            return $post->ID;
+        }
+
+        // Check if the current post is a lesson and retrieve its associated course
+        if ($post->post_type === 'lesson') {
+            $course_id = get_post_meta($post->ID, '_lesson_course', true);
+            return $course_id ? intval($course_id) : 0;
+        }
+
+        // Default to 0 if not a course or lesson
+        return 0;
+    }
+
+    /**
      * Renders the private student note editor content on the front-end.
      *
      * @return string The HTML content of the editor or an empty string if the user is not logged in.
@@ -110,8 +144,9 @@ class Private_Student_Notes {
         if ( ! is_user_logged_in() ) {
             return ''; // Return empty if the user is not logged in
         }
+        $course_id = self::get_course_id();
         ob_start();
-        echo '<div id="private-student-note-editor" class=""></div>';
+        echo '<div id="private-student-note-editor" data-course-id="' . esc_attr( $course_id ) . '"></div>';
         return ob_get_clean();
     }
 
@@ -148,8 +183,11 @@ class Private_Student_Notes {
         if (!$user_id) {
             return new WP_Error('unauthorized', 'User not logged in', [ 'status' => 401 ] );
         }
+
+        // Get the user meta key for the note
+        $note_key = $this->get_note_meta_key();
     
-        $note = $this->escape_except_allowed_tags( get_user_meta( $user_id, '_private_student_note', true ) );
+        $note = $this->escape_except_allowed_tags( get_user_meta( $user_id, $note_key, true ) );
         
         return rest_ensure_response( [
             'note' => $note ? $note : '', // Return an empty string if no note exists
@@ -190,8 +228,11 @@ class Private_Student_Notes {
             return new WP_Error( 'invalid_data', 'Invalid note data', [ 'status' => 400 ] );
         }
 
+        // Get the user meta key for the note
+        $note_key = $this->get_note_meta_key();
+
         // Retrieve the current note
-        $current_note = get_user_meta( $user_id, '_private_student_note', true );
+        $current_note = get_user_meta( $user_id, $note_key, true );
 
         // Check if the new note is the same as the current one
         if ( $current_note === $note ) {
@@ -202,7 +243,7 @@ class Private_Student_Notes {
         }
 
         // Attempt to update the note
-        $updated = update_user_meta( $user_id, '_private_student_note', $note );
+        $updated = update_user_meta( $user_id, $note_key, $note );
 
         if ( $updated ) {
             return new WP_REST_Response( [
@@ -216,6 +257,55 @@ class Private_Student_Notes {
             ], 500 );
         }
     }
+
+
+    /**
+     * Get the meta key for storing or retrieving private student notes.
+     *
+     * By default, the method returns the `_vip_learn_private_student_note` meta key.
+     * If a valid `X-Course-ID` header is provided, Sensei LMS is active, the course ID is valid,
+     * and the logged-in user is enrolled in the course, it returns a course-specific meta key
+     * in the format `_vip_learn_private_student_note_<course_id>`.
+     *
+     * @return string The meta key for the private student note.
+     */
+    private function get_note_meta_key() {
+        // Default meta key
+        $default_meta_key = 'vip_learn_private_student_note';
+
+        // Check if Sensei LMS is active
+        if (!function_exists('Sensei')) {
+            return $default_meta_key;
+        }
+
+        // Retrieve the course ID from headers using $_SERVER
+        $course_id = 0;
+        if (isset($_SERVER['HTTP_X_COURSE_ID'])) {
+            $course_id = intval($_SERVER['HTTP_X_COURSE_ID']);
+        }
+
+        // If no course ID is provided, return the default meta key
+        if (!$course_id) {
+            return $default_meta_key;
+        }
+
+        // Validate that the course ID is a valid course post
+        if (get_post_type($course_id) !== 'course') {
+            return $default_meta_key;
+        }
+
+        // Check if the logged-in user is enrolled in the course
+        $user_id = get_current_user_id();
+        $course_enrolment = Sensei_Course_Enrolment::get_course_instance( $course_id );
+
+        if (!$course_enrolment->is_enrolled( $user_id )) {
+            return $default_meta_key;
+        }
+
+        // Sanitize and return the course-specific meta key
+        return sanitize_key($default_meta_key . '_' . $course_id);
+    }
+
 
     /**
      * Sanitizes the note content, ensuring that only specific HTML tags are allowed.
